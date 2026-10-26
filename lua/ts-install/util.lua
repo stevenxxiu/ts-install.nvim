@@ -27,13 +27,20 @@ M.copyfile = async.wrap(4, uv.fs_copyfile --[[@as function]])
 --- @type fun(path: string, new_path: string): string?
 M.rename = async.wrap(3, uv.fs_rename --[[@as function]])
 
-if vim.env.TERMUX_VERSION ~= nil or vim.env.HOME == '/data/data/com.termux/files/home/.suroot' then
-  --- @type fun(path: string, new_path: string): string?
-  M.link = async.wrap(3, uv.fs_copyfile --[[@as function]])
-else
-  --- @type fun(path: string, new_path: string): string?
-  M.link = async.wrap(3, uv.fs_link --[[@as function]])
+--- @param path string
+--- @param new_path string
+--- @return boolean?, string?, uv.error_name?
+function link_or_copy(path, new_path)
+  local success, err_msg, err_name = uv.fs_link(path, new_path)
+  if err_name == 'EACCES' then
+    -- *Termux* only allows hard links with root, on the same filesystem and mount point.
+    return uv.fs_copyfile(path, new_path)
+  end
+  return success, err_msg, err_name
 end
+
+--- @type fun(path: string, new_path: string): boolean?, string?, uv.error_name?
+M.link = async.wrap(3, link_or_copy --[[@as function]])
 
 --- @async
 --- @param cmd string[]
